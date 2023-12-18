@@ -1,0 +1,319 @@
+name: Build Release
+on:
+  schedule:
+    - cron: 16 8 * * *
+  workflow_dispatch:
+
+# Cancel active CI runs for a PR before starting another run
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  FORCE_COLOR: "1"
+
+jobs:
+  pythonbuild:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Install System Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y --no-install-recommends libssl-dev pkg-config
+
+      - uses: actions/checkout@v4
+        with:
+          repository: indygreg/python-build-standalone
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Emit rustc version
+        run: rustc --version > .rustc-version
+
+      - uses: actions/cache@v3
+        with:
+          key: ${{ runner.os }}-pythonbuild-${{ hashFiles('Cargo.lock', '.rustc-version') }}
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Upload pythonbuild Executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: pythonbuild
+          path: target/release/pythonbuild
+
+  image:
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - build
+          - build.cross
+          - gcc
+          - xcb
+          - xcb.cross
+    runs-on: ubuntu-22.04
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: indygreg/python-build-standalone
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Dockerfiles
+        run: |
+          ./build-linux.py --make-target empty
+          repo_name=$(echo "${GITHUB_REPOSITORY,,}" | sed 's|\.|_|g')
+          git_ref_name=$(echo "${GITHUB_REF_NAME,,}" | sed 's|[^a-z0-9_-]|_|g')
+          echo "REPO_NAME=${repo_name}" >> "${GITHUB_ENV}"
+          echo "GIT_REF_NAME=${git_ref_name}" >> "${GITHUB_ENV}"
+
+      - name: Build Image
+        id: build-image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: build/${{ matrix.image }}.Dockerfile
+          labels: org.opencontainers.image.source=https://github.com/${{ env.REPO_NAME }}
+          # Cache from/to the current branch of the current repo as the primary cache key.
+          # Cache from the default branch of the current repo so branches can have cache hits.
+          # Cache from the default branch of the canonical repo so forks can have cache hits.
+          # Ignore errors on cache writes so CI of forks works without a valid GHCR config.
+          cache-from: |
+            type=registry,ref=ghcr.io/${{ env.REPO_NAME }}:${{ matrix.image }}-${{ env.GIT_REF_NAME }}
+            type=registry,ref=ghcr.io/${{ env.REPO_NAME }}:${{ matrix.image }}-main
+            type=registry,ref=ghcr.io/indygreg/python-build-standalone:${{ matrix.image }}-main
+          cache-to: |
+            type=registry,ref=ghcr.io/${{ env.REPO_NAME }}:${{ matrix.image }}-${{ env.GIT_REF_NAME }},ignore-errors=true
+          outputs: |
+            type=docker,dest=build/image-${{ matrix.image }}.tar
+
+      - name: Compress Image
+        run: |
+          echo ${{ steps.build-image.outputs.imageid }} > build/image-${{ matrix.image }}
+          zstd -v -T0 -6 --rm build/image-*.tar
+
+      - name: Upload Docker Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: images-${{ matrix.image }}
+          path: build/image-*
+
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        build:
+          - target_triple: "aarch64-unknown-linux-gnu"
+            py: "cpython-3.8"
+
+          - target_triple: "aarch64-unknown-linux-gnu"
+            py: "cpython-3.9"
+
+          - target_triple: "aarch64-unknown-linux-gnu"
+            py: "cpython-3.10"
+
+          - target_triple: "aarch64-unknown-linux-gnu"
+            py: "cpython-3.11"
+
+          - target_triple: "aarch64-unknown-linux-gnu"
+            py: "cpython-3.12"
+
+          - target_triple: "armv7-unknown-linux-gnueabi"
+            py: "cpython-3.9"
+
+          - target_triple: "armv7-unknown-linux-gnueabi"
+            py: "cpython-3.10"
+
+          - target_triple: "armv7-unknown-linux-gnueabi"
+            py: "cpython-3.11"
+
+          - target_triple: "armv7-unknown-linux-gnueabi"
+            py: "cpython-3.12"
+
+          - target_triple: "armv7-unknown-linux-gnueabihf"
+            py: "cpython-3.9"
+
+          - target_triple: "armv7-unknown-linux-gnueabihf"
+            py: "cpython-3.10"
+
+          - target_triple: "armv7-unknown-linux-gnueabihf"
+            py: "cpython-3.11"
+
+          - target_triple: "armv7-unknown-linux-gnueabihf"
+            py: "cpython-3.12"
+
+    needs:
+      - pythonbuild
+      - image
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          repository: indygreg/python-build-standalone
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download pythonbuild
+        uses: actions/download-artifact@v4
+        with:
+          name: pythonbuild
+          path: build
+
+      - name: Download images
+        uses: actions/download-artifact@v4
+        with:
+          pattern: images-*
+          merge-multiple: true
+          path: build
+
+      - name: Load Docker Images
+        run: |
+          for f in build/image-*.tar.zst; do
+            echo "decompressing $f"
+            zstd -d --rm ${f}
+          done
+
+          for f in build/image-*.tar; do
+            echo "loading $f"
+            docker load --input $f
+          done
+
+      - name: Build
+        run: |
+          # Do empty target so all generated files are touched.
+          ./build-linux.py --make-target empty
+
+          # Touch mtimes of all images so they are newer than autogenerated files above.
+          touch build/image-*
+
+          ./build-linux.py --target-triple ${{ matrix.build.target_triple }} --python ${{ matrix.build.py }}
+
+      - name: Validate Distribution
+        run: |
+          chmod +x build/pythonbuild
+
+          if [ -n "${{matrix.build.run}}" ]; then
+            EXTRA_ARGS="--run"
+          fi
+
+          build/pythonbuild validate-distribution ${EXTRA_ARGS} dist/*.tar.zst
+
+      - name: Create Install Release
+        run: |
+          EXTRACT_DIR="$(pwd)/extracted"
+          UPLOAD_DIR="$(pwd)/upload"
+
+          DIST_NAME=(dist/*)
+          DIST_NAME=${DIST_NAME[0]}
+          DIST_NAME=${DIST_NAME##*/}  # strip directory name
+          DIST_NAME=${DIST_NAME::-8}  # strip .tar.zst
+
+          rm -rf $EXTRACT_DIR
+          mkdir $EXTRACT_DIR
+          tar --use-compress-program=unzstd -xvf dist/$DIST_NAME.tar.zst -C $EXTRACT_DIR
+
+          rm -rf $UPLOAD_DIR
+          mkdir $UPLOAD_DIR
+          cd $EXTRACT_DIR/python/
+          mv install python
+          tar -czvf ${DIST_NAME::-14}.tar.gz python
+          mv ${DIST_NAME::-14}.tar.gz $UPLOAD_DIR
+
+      - name: Upload Distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.build.py }}-${{ matrix.build.target_triple }}
+          path: upload/*
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: write
+    steps:
+      - name: Get packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cpython-*
+          merge-multiple: true
+          path: release
+
+      - name: Continuous Releases
+        id: version
+        working-directory: release
+        run: |
+          mkdir ../continuous
+
+          for FILE in *; do
+            BEG=$(sed -E 's/(([^.]*\.){1}[^.]*)\..*/\1/' <<< $FILE)
+            END=$(cut -d - -f2-20 <<< $(cut -f3- -d'.' <<< $FILE))
+            NEW_FILE="$BEG-$END"
+            cp "$FILE" ../continuous/"$NEW_FILE"
+          done
+
+      - name: Create Continuous Release
+        uses: ncipollo/release-action@v1
+        with:
+          name: Continuous
+          tag: continuous
+          draft: false
+          artifacts: continuous/*
+          allowUpdates: true
+          removeArtifacts: true
+          artifactErrorsFailBuild: true
+
+#      - name: Version Releases
+#        id: version
+#        working-directory: release
+#        run: |
+#          mkdir ../versioned
+#          DATE=$(date -u +"%Y%m%dT%H%MZ")
+#          for FILE in *; do
+#            NEW_FILE="${FILE::-8}"
+#            NEW_FILE="$NEW_FILE-$DATE.tar.gz"
+#            cp "$FILE" ../versioned/"$NEW_FILE"
+#          done
+#          echo "version=$DATE" | tee -a $GITHUB_OUTPUT
+#
+#      - name: Create Versioned Release
+#        uses: ncipollo/release-action@v1
+#        with:
+#          name: ${{ steps.version.outputs.version }}
+#          tag: ${{ steps.version.outputs.version }}
+#          draft: false
+#          artifacts: versioned/*
+#          allowUpdates: false
+#          artifactErrorsFailBuild: true
