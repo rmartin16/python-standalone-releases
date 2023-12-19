@@ -23,7 +23,7 @@ jobs:
           sudo apt update
           sudo apt install -y --no-install-recommends libssl-dev pkg-config
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: indygreg/python-build-standalone
 
@@ -47,7 +47,7 @@ jobs:
         run: cargo build --release
 
       - name: Upload pythonbuild Executable
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: pythonbuild
           path: target/release/pythonbuild
@@ -66,20 +66,20 @@ jobs:
     permissions:
       packages: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: indygreg/python-build-standalone
 
       - name: Install Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -95,7 +95,7 @@ jobs:
 
       - name: Build Image
         id: build-image
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: build/${{ matrix.image }}.Dockerfile
@@ -119,7 +119,7 @@ jobs:
           zstd -v -T0 -6 --rm build/image-*.tar
 
       - name: Upload Docker Image
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: images
           path: build/image-*
@@ -173,24 +173,24 @@ jobs:
       - image
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           repository: indygreg/python-build-standalone
 
       - name: Install Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Download pythonbuild
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: pythonbuild
           path: build
 
       - name: Download images
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: images
           path: build
@@ -245,7 +245,7 @@ jobs:
           tar -czvf $DIST_NAME.tar.gz ./$EXTRACT_DIR/python/install -C $UPLOAD_DIR
 
       - name: Upload Distribution
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.build.py }}-${{ matrix.build.target_triple }}
           path: upload/*
