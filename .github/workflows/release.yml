@@ -131,44 +131,44 @@ jobs:
       fail-fast: false
       matrix:
         build:
-          - target_triple: "aarch64-unknown-linux-gnu"
-            py: "cpython-3.8"
+          - py: "cpython-3.8"
+            target_triple: "aarch64-unknown-linux-gnu"
 
-          - target_triple: "aarch64-unknown-linux-gnu"
-            py: "cpython-3.9"
+          - py: "cpython-3.9"
+            target_triple: "aarch64-unknown-linux-gnu"
 
-          - target_triple: "aarch64-unknown-linux-gnu"
-            py: "cpython-3.10"
+          - py: "cpython-3.10"
+            target_triple: "aarch64-unknown-linux-gnu"
 
-          - target_triple: "aarch64-unknown-linux-gnu"
-            py: "cpython-3.11"
+          - py: "cpython-3.11"
+            target_triple: "aarch64-unknown-linux-gnu"
 
-          - target_triple: "aarch64-unknown-linux-gnu"
-            py: "cpython-3.12"
+          - py: "cpython-3.12"
+            target_triple: "aarch64-unknown-linux-gnu"
 
-          - target_triple: "armv7-unknown-linux-gnueabi"
-            py: "cpython-3.9"
+          - py: "cpython-3.9"
+            target_triple: "armv7-unknown-linux-gnueabi"
 
-          - target_triple: "armv7-unknown-linux-gnueabi"
-            py: "cpython-3.10"
+          - py: "cpython-3.10"
+            target_triple: "armv7-unknown-linux-gnueabi"
 
-          - target_triple: "armv7-unknown-linux-gnueabi"
-            py: "cpython-3.11"
+          - py: "cpython-3.11"
+            target_triple: "armv7-unknown-linux-gnueabi"
 
-          - target_triple: "armv7-unknown-linux-gnueabi"
-            py: "cpython-3.12"
+          - py: "cpython-3.12"
+            target_triple: "armv7-unknown-linux-gnueabi"
 
-          - target_triple: "armv7-unknown-linux-gnueabihf"
-            py: "cpython-3.9"
+          - py: "cpython-3.9"
+            target_triple: "armv7-unknown-linux-gnueabihf"
 
-          - target_triple: "armv7-unknown-linux-gnueabihf"
-            py: "cpython-3.10"
+          - py: "cpython-3.10"
+            target_triple: "armv7-unknown-linux-gnueabihf"
 
-          - target_triple: "armv7-unknown-linux-gnueabihf"
-            py: "cpython-3.11"
+          - py: "cpython-3.11"
+            target_triple: "armv7-unknown-linux-gnueabihf"
 
-          - target_triple: "armv7-unknown-linux-gnueabihf"
-            py: "cpython-3.12"
+          - py: "cpython-3.12"
+            target_triple: "armv7-unknown-linux-gnueabihf"
 
     needs:
       - pythonbuild
