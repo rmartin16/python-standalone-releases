@@ -1,7 +1,10 @@
 name: Build Release
 on:
   schedule:
-    - cron: 16 8 * * *
+    - cron: 16 8 */7 * *
+  pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 # Cancel active CI runs for a PR before starting another run
