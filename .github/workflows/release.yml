@@ -37,7 +37,7 @@ jobs:
       - name: Emit rustc version
         run: rustc --version > .rustc-version
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           key: ${{ runner.os }}-pythonbuild-${{ hashFiles('Cargo.lock', '.rustc-version') }}
           path: |
